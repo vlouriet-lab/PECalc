@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PE-Calc (Final)</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        
+        * { box-sizing: border-box; }
+        
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background: #ffffff;
+            color: #1a1a1a;
+            padding: 16px;
+            margin: 0;
+            line-height: 1.6;
+        }
+        
+        .wrapper { 
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 24px;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(124, 58, 237, 0.08);
+            border: 1px solid #e9d5ff;
+        }
+        
+        h2 { margin: 0 0 8px 0; color: #6b21a8; font-size: 24px; font-weight: 800; }
+        .subtitle { color: #9333ea; font-size: 13px; margin-bottom: 24px; font-weight: 500; }
+        
+        .controls { 
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%);
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid #e9d5ff;
+        }
+        
+        .control-item { display: flex; flex-direction: column; }
+        
+        .month-selector { display: grid; grid-template-columns: 2fr 1fr; gap: 12px; }
+        
+        label { 
+            font-size: 11px; font-weight: 700; margin-bottom: 8px; 
+            color: #7c3aed; text-transform: uppercase; 
+        }
+        
+        input, select { 
+            width: 100%; padding: 12px; border: 2px solid #e9d5ff; 
+            border-radius: 8px; font-family: inherit;
+        }
+        
+        .btn-calc { 
+            grid-column: 1 / -1;
+            background: linear-gradient(135deg, #7c3aed 0%, #9333ea 100%);
+            color: white; border: none; padding: 14px;
+            font-weight: 700; cursor: pointer; border-radius: 8px;
+            text-transform: uppercase; transition: all 0.3s;
+        }
+        
+        .btn-calc:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(124, 58, 237, 0.35); }
+
+        .info-panel { 
+            display: grid; grid-template-columns: 2fr 1fr 1fr; 
+            gap: 16px; margin-bottom: 20px;
+        }
+        
+        .owner-box { 
+            padding: 16px; background: #faf5ff; border: 2px solid #e9d5ff; 
+            border-radius: 12px; color: #6b21a8; font-size: 13px; font-weight: 600;
+        }
+        
+        .stat-box { 
+            background: #faf5ff; padding: 16px; border-radius: 12px; 
+            text-align: right; border: 2px solid #e9d5ff;
+        }
+        
+        .stat-val { font-size: 24px; font-weight: 800; color: #6b21a8; display: block; }
+        .tax-box .stat-val { color: #a21caf; }
+
+        #logArea { 
+            width: 100%; height: 120px; background: #1e1333; color: #c084fc;
+            font-family: monospace; font-size: 11px; padding: 12px;
+            overflow-y: auto; border-radius: 12px; margin-top: 20px;
+        }
+
+        .table-container { overflow-x: auto; margin-top: 20px; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th { text-align: left; background: #7c3aed; color: white; padding: 12px; }
+        td { padding: 12px; border-bottom: 1px solid #f3e8ff; }
+        .hl-amount { font-weight: 700; color: #6b21a8; }
+    </style>
+</head>
+<body>
+
+<div class="wrapper">
+    <h2>🇬🇪 PE-Calc</h2>
+    <div class="subtitle">Калькулятор налога 1% (BoG Excel / TBC PDF)</div>
+    
+    <div class="controls">
+        <div class="control-item">
+            <label>1. Банк</label>
+            <select id="bankSelect">
+                <option value="bog">Bank of Georgia (.xlsx)</option>
+                <option value="tbc">TBC Bank (.pdf)</option>
+            </select>
+        </div>
+        <div class="control-item">
+            <label>2. Период</label>
+            <div class="month-selector">
+                <select id="monthSelect">
+                    <option value="01">Январь</option><option value="02">Февраль</option>
+                    <option value="03">Март</option><option value="04">Апрель</option>
+                    <option value="05">Май</option><option value="06">Июнь</option>
+                    <option value="07">Июль</option><option value="08">Август</option>
+                    <option value="09">Сентябрь</option><option value="10">Октябрь</option>
+                    <option value="11">Ноябрь</option><option value="12">Декабрь</option>
+                </select>
+                <select id="yearSelect"></select>
+            </div>
+        </div>
+        <div class="control-item">
+            <label>3. Файл выписки</label>
+            <input type="file" id="fileInput">
+        </div>
+        <button class="btn-calc" onclick="startProcess()">🚀 Рассчитать</button>
+    </div>
+
+    <div class="info-panel">
+        <div class="owner-box" id="ownerDisplay">👤 Владелец: <b>(не определен)</b></div>
+        <div class="stat-box"><small>ДОХОД (GEL)</small><span class="stat-val" id="totalGEL">0.00</span></div>
+        <div class="stat-box tax-box"><small>НАЛОГ 1% (GEL)</small><span class="stat-val" id="totalTax">0.00</span></div>
+    </div>
+
+    <div id="logArea">Готов к работе...</div>
+
+    <div class="table-container">
+        <table id="resTable">
+            <thead>
+                <tr><th>Дата</th><th>Описание</th><th>Сумма</th><th>Курс</th><th>Итого (GEL)</th></tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    // Настройка PDF.js
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    let currentExcelData = null; // Данные для BoG
+    let currentPdfFile = null;   // Данные для TBC
+
+    // ОБЩИЙ СПИСОК ФИЛЬТРОВ (Объединил английские и грузинские стоп-слова)
+    const STOP_WORDS = [
+        "conversion", "exchange", "loan", "disbursement", 
+        "transfer to own", "refund", "electronic till", 
+        "კონვერტაცია", "გადარიცხვა საკუთარ", "atm withdrawal", "service fee"
+    ];
+
+    // Инициализация годов
+    const ys = document.getElementById('yearSelect');
+    const cy = new Date().getFullYear();
+    for(let y=cy; y>=cy-5; y--) {
+        let opt = document.createElement('option'); opt.value = y; opt.textContent = y; ys.appendChild(opt);
+    }
+    document.getElementById('monthSelect').value = String(new Date().getMonth() + 1).padStart(2, '0');
+
+    function log(msg) {
+        const div = document.createElement('div'); div.innerHTML = `> ${msg}`;
+        const area = document.getElementById('logArea');
+        area.appendChild(div); area.scrollTop = area.scrollHeight;
+    }
+
+    // Обработчик загрузки файла
+    document.getElementById('fileInput').addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        if (file.name.toLowerCase().endsWith('.pdf')) {
+            currentPdfFile = file;
+            currentExcelData = null;
+            log(`PDF выбран: ${file.name}`);
+            // Пытаемся сразу найти владельца в PDF для красоты
+            await findTbcOwnerAndLog(file);
+        } else {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const data = new Uint8Array(event.target.result);
+                currentExcelData = XLSX.read(data, {type: 'array', cellDates: true});
+                currentPdfFile = null;
+                // Ищем владельца методом BoG
+                const owner = findBogOwner(currentExcelData);
+                document.getElementById('ownerDisplay').innerHTML = `👤 Владелец: <b>${owner || "Не найден"}</b>`;
+                log("Excel загружен.");
+            };
+            reader.readAsArrayBuffer(file);
+        }
+    });
+
+    async function startProcess() {
+        const bank = document.getElementById('bankSelect').value;
+        const m = document.getElementById('monthSelect').value;
+        const y = document.getElementById('yearSelect').value;
+
+        if (bank === 'tbc') {
+            if (!currentPdfFile) return alert("Загрузите PDF файл!");
+            await processTBC(m, y);
+        } else {
+            if (!currentExcelData) return alert("Загрузите Excel файл!");
+            await processBoG(m, y);
+        }
+    }
+
+    // ==========================================
+    // ЛОГИКА BOG (EXCEL) - ВОССТАНОВЛЕНА ИЗ PE-Calc (1).html
+    // ==========================================
+    async function processBoG(month, year) {
+        // Преобразуем строки в числа для Date
+        const m = parseInt(month);
+        const y = parseInt(year);
+        const dateFrom = new Date(y, m - 1, 1);
+        const dateTo = new Date(y, m, 0, 23, 59, 59);
+
+        const tbody = document.querySelector('#resTable tbody');
+        tbody.innerHTML = '';
+        let totalGEL = 0;
+        
+        const ownerName = findBogOwner(currentExcelData);
+        
+        let sheetName = currentExcelData.SheetNames.find(n => n.toLowerCase().includes('trans')) || currentExcelData.SheetNames[1];
+        if (!sheetName) sheetName = currentExcelData.SheetNames[0];
+        
+        log(`BoG Анализ листа: "${sheetName}"`);
+        const rows = XLSX.utils.sheet_to_json(currentExcelData.Sheets[sheetName], {header: 1});
+
+        let col = { date: -1, desc: -1, gel: -1, usd: -1, eur: -1 };
+        let startIdx = 0;
+
+        // Поиск строки заголовков (как в оригинале)
+        for(let i=0; i<Math.min(rows.length, 25); i++) {
+            const r = rows[i].map(c => String(c || '').toLowerCase());
+            if (r.some(c => c.includes('date')) && r.some(c => c.includes('amount') || c.includes('gel'))) {
+                col.date = r.findIndex(c => c.includes('date'));
+                col.desc = r.findIndex(c => c.includes('detail') || c.includes('desc') || c.includes('назначение'));
+                col.gel = r.indexOf('gel');
+                col.usd = r.indexOf('usd');
+                col.eur = r.indexOf('eur');
+                
+                // Fallback для CSV BoG
+                if (col.gel === -1) { col.gel = 3; col.usd = 4; col.eur = 5; }
+                startIdx = i + 1;
+                break;
+            }
+        }
+
+        for (let i = startIdx; i < rows.length; i++) {
+            const row = rows[i];
+            let dateVal = row[col.date];
+            if (!dateVal) continue;
+
+            let dateObj = null;
+            if (dateVal instanceof Date) dateObj = dateVal;
+            else if (typeof dateVal === 'string') {
+                const parts = dateVal.split(/[\/\.]/);
+                if (parts.length === 3) dateObj = new Date(parts[2], parts[1]-1, parts[0]);
+            }
+            if (!dateObj || isNaN(dateObj)) continue;
+            
+            // Фильтр по дате
+            if (dateObj < dateFrom || dateObj > dateTo) continue;
+
+            const rawDesc = String(row[col.desc] || '');
+            const desc = rawDesc.toLowerCase();
+
+            // Фильтры
+            if (STOP_WORDS.some(w => desc.includes(w))) continue;
+            if (ownerName && rawDesc.toUpperCase().includes(ownerName)) continue;
+
+            // Деньги
+            const monies = [
+                { val: parseMoney(row[col.gel]), code: 'GEL' },
+                { val: parseMoney(row[col.usd]), code: 'USD' },
+                { val: parseMoney(row[col.eur]), code: 'EUR' }
+            ];
+
+            for (let money of monies) {
+                if (money.val > 0) {
+                    const rate = await getRate(dateObj, money.code);
+                    const sumGEL = money.val * rate;
+                    totalGEL += sumGEL;
+                    
+                    tbody.innerHTML += `
+                        <tr>
+                            <td>${dateObj.toLocaleDateString()}</td>
+                            <td>${rawDesc.substring(0, 50)}</td>
+                            <td>${money.val} ${money.code}</td>
+                            <td>${rate.toFixed(4)}</td>
+                            <td class="hl-amount">${sumGEL.toFixed(2)}</td>
+                        </tr>`;
+                }
+            }
+        }
+        updateTotals(totalGEL);
+    }
+
+    // ==========================================
+    // ЛОГИКА TBC (PDF) - ОБНОВЛЕННАЯ
+    // ==========================================
+    async function processTBC(targetMonth, targetYear) {
+        const pdf = await pdfjsLib.getDocument(await currentPdfFile.arrayBuffer()).promise;
+        let totalGEL = 0;
+        const tbody = document.querySelector('#resTable tbody');
+        tbody.innerHTML = '';
+        log("TBC: Начинаю обработку PDF...");
+
+        for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const content = await page.getTextContent();
+            const items = content.items;
+
+            // Определяем колонку Paid In на странице
+            let paidInX = 0;
+            const header = items.find(it => it.str.includes("Paid In") || it.str.includes("შემოსული"));
+            if (header) paidInX = header.transform[4];
+
+            for (let j = 0; j < items.length; j++) {
+                const str = items[j].str.trim();
+                
+                // Проверяем дату (dd/mm/yyyy)
+                if (/^\d{2}\/\d{2}\/\d{4}$/.test(str)) {
+                    const parts = str.split('/');
+                    if (parts[1] === targetMonth && parts[2] === targetYear) {
+                        
+                        const currentY = items[j].transform[5];
+                        let desc = (items[j+1]?.str || "") + " " + (items[j+2]?.str || "");
+                        let income = 0;
+
+                        // Ищем сумму строго в колонке Paid In (по координате X)
+                        // Сканируем следующие элементы массива items
+                        for (let k = j + 1; k < j + 30 && k < items.length; k++) {
+                            const it = items[k];
+                            // Проверка: элемент на той же строке (Y) и в колонке Paid In (X)
+                            const isSameLine = Math.abs(it.transform[5] - currentY) < 5;
+                            const isPaidInCol = paidInX > 0 && Math.abs(it.transform[4] - paidInX) < 60;
+                            
+                            if (isSameLine && isPaidInCol) {
+                                let val = it.str.replace(/,/g, '');
+                                if (!isNaN(val) && parseFloat(val) > 0) {
+                                    income = parseFloat(val);
+                                    break; 
+                                }
+                            }
+                        }
+
+                        if (income > 0 && !STOP_WORDS.some(w => desc.toLowerCase().includes(w.toLowerCase()))) {
+                            totalGEL += income;
+                            tbody.innerHTML += `
+                                <tr>
+                                    <td>${str}</td>
+                                    <td>${desc.substring(0,60)}</td>
+                                    <td>${income.toFixed(2)} GEL</td>
+                                    <td>1.0000</td>
+                                    <td class="hl-amount">${income.toFixed(2)}</td>
+                                </tr>`;
+                        }
+                    }
+                }
+            }
+        }
+        updateTotals(totalGEL);
+    }
+
+    // Вспомогательная функция для поиска владельца TBC
+    async function findTbcOwnerAndLog(file) {
+        try {
+            const pdf = await pdfjsLib.getDocument(await file.arrayBuffer()).promise;
+            const page = await pdf.getPage(1);
+            const content = await page.getTextContent();
+            const items = content.items;
+            
+            for (let i = 0; i < items.length; i++) {
+                const text = items[i].str.trim();
+                if (text.includes("Account Holder:") || text.includes("ანგარიშის მფლობელი:")) {
+                    // Проверяем следующие несколько элементов, пока не найдем длинный текст (имя)
+                    for (let k=1; k<=5; k++) {
+                        const nextText = items[i+k]?.str.trim();
+                        if (nextText && nextText.length > 2) {
+                            document.getElementById('ownerDisplay').innerHTML = `👤 Владелец: <b>${nextText}</b>`;
+                            log(`Найден владелец: ${nextText}`);
+                            return;
+                        }
+                    }
+                }
+            }
+        } catch(e) {}
+    }
+
+    // Вспомогательная функция для BoG
+    function findBogOwner(wb) {
+        let ds = wb.Sheets["Details"] || wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ds, {header: 1});
+        for(let row of rows) {
+            const str = row.map(c => String(c || '').toLowerCase());
+            if (str.some(c => c.includes('account owner') || c.includes('владелец'))) {
+                for(let i=1; i<row.length; i++) {
+                    if (row[i] && String(row[i]).length > 3) return String(row[i]).toUpperCase();
+                }
+            }
+        }
+        return null;
+    }
+
+    // Парсер денег из BoG (важно для восстановления работы)
+    function parseMoney(val) {
+        if (typeof val === 'number') return val;
+        return val ? parseFloat(String(val).replace(/,/g, '')) : 0;
+    }
+
+    function updateTotals(total) {
+        document.getElementById('totalGEL').innerText = total.toFixed(2);
+        document.getElementById('totalTax').innerText = (total * 0.01).toFixed(2);
+        log("Расчет завершен.");
+    }
+
+    // Кэш и API курсов
+    let cache = {};
+    async function getRate(date, curr) {
+        if (curr === 'GEL') return 1;
+        const dStr = date.toISOString().split('T')[0];
+        if (cache[dStr+curr]) return cache[dStr+curr];
+        try {
+            const url = `https://api.allorigins.win/get?url=${encodeURIComponent('https://nbg.gov.ge/gw/api/ct/monetarypolicy/currencies/en/json/?date=' + dStr)}`;
+            const res = await fetch(url);
+            const json = await res.json();
+            const data = JSON.parse(json.contents);
+            const found = data[0].currencies.find(c => c.code === curr);
+            cache[dStr+curr] = found ? (found.rate / found.quantity) : 1;
+            return cache[dStr+curr];
+        } catch { return 1; }
+    }
+</script>
+</body>
+</html>
